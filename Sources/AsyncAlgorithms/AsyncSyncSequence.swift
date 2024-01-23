@@ -14,8 +14,8 @@ extension Sequence {
   /// but on which operations, such as `map` and `filter`, are
   /// implemented asynchronously.
   @inlinable
-  public var async: AsyncLazySequence<Self> {
-    AsyncLazySequence(self)
+  public var async: AsyncSyncSequence<Self> {
+    AsyncSyncSequence(self)
   }
 }
 
@@ -28,7 +28,7 @@ extension Sequence {
 /// This functions similarly to `LazySequence` by accessing elements sequentially
 /// in the iterator's `next()` method.
 @frozen
-public struct AsyncLazySequence<Base: Sequence>: AsyncSequence {
+public struct AsyncSyncSequence<Base: Sequence>: AsyncSequence {
   public typealias Element = Base.Element
   
   @frozen
@@ -66,5 +66,7 @@ public struct AsyncLazySequence<Base: Sequence>: AsyncSequence {
   }
 }
 
-extension AsyncLazySequence: Sendable where Base: Sendable { }
-extension AsyncLazySequence.Iterator: Sendable where Base.Iterator: Sendable { }
+extension AsyncSyncSequence: Sendable where Base: Sendable { }
+
+@available(*, unavailable)
+extension AsyncSyncSequence.Iterator: Sendable { }

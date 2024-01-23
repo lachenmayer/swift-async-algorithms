@@ -12,9 +12,9 @@
 import _CAsyncSequenceValidationSupport
 
 #if canImport(Darwin)
-@_implementationOnly import Darwin
+import Darwin
 #elseif canImport(Glibc)
-@_implementationOnly import Glibc
+import Glibc
 #elseif canImport(WinSDK)
 #error("TODO: Port TaskDriver threading to windows")
 #endif
@@ -50,8 +50,12 @@ final class TaskDriver {
   }
   
   func start() {
+#if canImport(Darwin) || canImport(Glibc)
     pthread_create(&thread, nil, start_thread,
       Unmanaged.passRetained(self).toOpaque())
+#elseif canImport(WinSDK)
+#error("TODO: Port TaskDriver threading to windows")
+#endif
   }
   
   func run() {

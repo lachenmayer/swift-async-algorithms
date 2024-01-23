@@ -49,6 +49,10 @@ public struct AsyncChunksOfCountSequence<Base: AsyncSequence, Collected: RangeRe
         return nil
       }
 
+      if count == 1 {
+        return Collected(CollectionOfOne(first))
+      }
+
       var result: Collected = .init()
       result.append(first)
 
@@ -83,3 +87,6 @@ public struct AsyncChunksOfCountSequence<Base: AsyncSequence, Collected: RangeRe
 
 extension AsyncChunksOfCountSequence : Sendable where Base : Sendable, Base.Element : Sendable { }
 extension AsyncChunksOfCountSequence.Iterator : Sendable where Base.AsyncIterator : Sendable, Base.Element : Sendable { }
+
+@available(*, unavailable)
+extension AsyncChunksOfCountSequence.Iterator: Sendable { }

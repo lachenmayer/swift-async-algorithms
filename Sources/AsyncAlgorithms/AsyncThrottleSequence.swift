@@ -12,20 +12,20 @@
 extension AsyncSequence {
   /// Create a rate-limited `AsyncSequence` by emitting values at most every specified interval.
   @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
-  public func throttle<C: Clock, Reduced>(for interval: C.Instant.Duration, clock: C, reducing: @Sendable @escaping (Reduced?, Element) async -> Reduced) -> AsyncThrottleSequence<Self, C, Reduced> {
-    AsyncThrottleSequence(self, interval: interval, clock: clock, reducing: reducing)
+  public func _throttle<C: Clock, Reduced>(for interval: C.Instant.Duration, clock: C, reducing: @Sendable @escaping (Reduced?, Element) async -> Reduced) -> _AsyncThrottleSequence<Self, C, Reduced> {
+      _AsyncThrottleSequence(self, interval: interval, clock: clock, reducing: reducing)
   }
   
   /// Create a rate-limited `AsyncSequence` by emitting values at most every specified interval.
   @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
-  public func throttle<Reduced>(for interval: Duration, reducing: @Sendable @escaping (Reduced?, Element) async -> Reduced) -> AsyncThrottleSequence<Self, ContinuousClock, Reduced> {
-    throttle(for: interval, clock: .continuous, reducing: reducing)
+  public func _throttle<Reduced>(for interval: Duration, reducing: @Sendable @escaping (Reduced?, Element) async -> Reduced) -> _AsyncThrottleSequence<Self, ContinuousClock, Reduced> {
+      _throttle(for: interval, clock: .continuous, reducing: reducing)
   }
   
   /// Create a rate-limited `AsyncSequence` by emitting values at most every specified interval.
   @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
-  public func throttle<C: Clock>(for interval: C.Instant.Duration, clock: C, latest: Bool = true) -> AsyncThrottleSequence<Self, C, Element> {
-    throttle(for: interval, clock: clock) { previous, element in
+  public func _throttle<C: Clock>(for interval: C.Instant.Duration, clock: C, latest: Bool = true) -> _AsyncThrottleSequence<Self, C, Element> {
+      _throttle(for: interval, clock: clock) { previous, element in
       if latest {
         return element
       } else {
@@ -36,14 +36,14 @@ extension AsyncSequence {
   
   /// Create a rate-limited `AsyncSequence` by emitting values at most every specified interval.
   @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
-  public func throttle(for interval: Duration, latest: Bool = true) -> AsyncThrottleSequence<Self, ContinuousClock, Element> {
-    throttle(for: interval, clock: .continuous, latest: latest)
+  public func _throttle(for interval: Duration, latest: Bool = true) -> _AsyncThrottleSequence<Self, ContinuousClock, Element> {
+      _throttle(for: interval, clock: .continuous, latest: latest)
   }
 }
 
 /// A rate-limited `AsyncSequence` by emitting values at most every specified interval.
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
-public struct AsyncThrottleSequence<Base: AsyncSequence, C: Clock, Reduced> {
+public struct _AsyncThrottleSequence<Base: AsyncSequence, C: Clock, Reduced> {
   let base: Base
   let interval: C.Instant.Duration
   let clock: C
@@ -58,7 +58,7 @@ public struct AsyncThrottleSequence<Base: AsyncSequence, C: Clock, Reduced> {
 }
 
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
-extension AsyncThrottleSequence: AsyncSequence {
+extension _AsyncThrottleSequence: AsyncSequence {
   public typealias Element = Reduced
   
   /// The iterator for an `AsyncThrottleSequence` instance.
@@ -81,7 +81,16 @@ extension AsyncThrottleSequence: AsyncSequence {
       let start = last ?? clock.now
       repeat {
         guard let element = try await base.next() else {
-          return nil
+          if reduced != nil, let last {
+            // ensure the rate of elements never exceeds the given interval
+            let amount = interval - last.duration(to: clock.now)
+            if amount > .zero {
+              try? await clock.sleep(until: clock.now.advanced(by: amount), tolerance: nil)
+            }
+          }
+          // the last value is unable to have any subsequent
+          // values so always return the last reduction
+          return reduced
         }
         let reduction = await reducing(reduced, element)
         let now = clock.now
@@ -101,7 +110,7 @@ extension AsyncThrottleSequence: AsyncSequence {
 }
 
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
-extension AsyncThrottleSequence: Sendable where Base: Sendable, Element: Sendable { }
+extension _AsyncThrottleSequence: Sendable where Base: Sendable, Element: Sendable { }
 
-@available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
-extension AsyncThrottleSequence.Iterator: Sendable where Base.AsyncIterator: Sendable { }
+@available(*, unavailable)
+extension _AsyncThrottleSequence.Iterator: Sendable { }

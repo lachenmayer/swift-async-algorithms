@@ -58,7 +58,7 @@ extension AsyncInclusiveReductionsSequence: AsyncSequence {
     internal let transform: @Sendable (Base.Element, Base.Element) async -> Base.Element
 
     @inlinable
-    internal init(
+    init(
       _ iterator: Base.AsyncIterator,
       transform: @Sendable @escaping (Base.Element, Base.Element) async -> Base.Element
     ) {
@@ -85,4 +85,6 @@ extension AsyncInclusiveReductionsSequence: AsyncSequence {
 }
 
 extension AsyncInclusiveReductionsSequence: Sendable where Base: Sendable { }
-extension AsyncInclusiveReductionsSequence.Iterator: Sendable where Base.AsyncIterator: Sendable, Base.Element: Sendable { }
+
+@available(*, unavailable)
+extension AsyncInclusiveReductionsSequence.Iterator: Sendable { }

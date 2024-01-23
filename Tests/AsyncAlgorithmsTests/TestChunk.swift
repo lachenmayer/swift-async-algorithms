@@ -13,15 +13,25 @@ import XCTest
 import AsyncSequenceValidation
 import AsyncAlgorithms
 
+@Sendable
 func sumCharacters(_ array: [String]) -> String {
   return "\(array.reduce(into: 0) { $0 = $0 + Int($1)! })"
 }
 
+@Sendable
 func concatCharacters(_ array: [String]) -> String {
   return array.joined()
 }
 
 final class TestChunk: XCTestCase {
+  func test_count_one() {
+    validate {
+      "ABCDE|"
+      $0.inputs[0].chunks(ofCount: 1).map(concatCharacters)
+      "ABCDE|"
+    }
+  }
+
   func test_signal_equalChunks() {
     validate {
       "ABC-    DEF-    GHI-     |"

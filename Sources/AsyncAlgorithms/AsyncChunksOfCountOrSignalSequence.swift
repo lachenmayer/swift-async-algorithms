@@ -70,7 +70,7 @@ public struct AsyncChunksOfCountOrSignalSequence<Base: AsyncSequence, Collected:
   public struct Iterator: AsyncIteratorProtocol {
     typealias EitherMappedBase = AsyncMapSequence<Base, Either>
     typealias EitherMappedSignal = AsyncMapSequence<Signal, Either>
-    typealias ChainedBase = AsyncChain2Sequence<EitherMappedBase, AsyncLazySequence<[Either]>>
+    typealias ChainedBase = AsyncChain2Sequence<EitherMappedBase, AsyncSyncSequence<[Either]>>
     typealias Merged = AsyncMerge2Sequence<ChainedBase, EitherMappedSignal>
     
     let count: Int?
@@ -128,3 +128,6 @@ public struct AsyncChunksOfCountOrSignalSequence<Base: AsyncSequence, Collected:
     return Iterator(iterator: merge(chain(base.map { Either.element($0) }, [.terminal].async), signal.map { _ in Either.signal }).makeAsyncIterator(), count: count)
   }
 }
+
+@available(*, unavailable)
+extension AsyncChunksOfCountOrSignalSequence.Iterator: Sendable { }

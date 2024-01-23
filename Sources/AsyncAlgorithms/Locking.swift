@@ -10,11 +10,11 @@
 //===----------------------------------------------------------------------===//
 
 #if canImport(Darwin)
-@_implementationOnly import Darwin
+import Darwin
 #elseif canImport(Glibc)
-@_implementationOnly import Glibc
+import Glibc
 #elseif canImport(WinSDK)
-@_implementationOnly import WinSDK
+import WinSDK
 #endif
 
 internal struct Lock {
@@ -24,6 +24,8 @@ internal struct Lock {
   typealias Primitive = pthread_mutex_t
 #elseif canImport(WinSDK)
   typealias Primitive = SRWLOCK
+#else
+  typealias Primitive = Int
 #endif
   
   typealias PlatformLock = UnsafeMutablePointer<Primitive>
@@ -37,7 +39,8 @@ internal struct Lock {
 #if canImport(Darwin)
     platformLock.initialize(to: os_unfair_lock())
 #elseif canImport(Glibc)
-    pthread_mutex_init(platformLock, nil)
+    let result = pthread_mutex_init(platformLock, nil)
+    precondition(result == 0, "pthread_mutex_init failed")
 #elseif canImport(WinSDK)
     InitializeSRWLock(platformLock)
 #endif
@@ -45,7 +48,8 @@ internal struct Lock {
   
   fileprivate static func deinitialize(_ platformLock: PlatformLock) {
 #if canImport(Glibc)
-    pthread_mutex_destroy(platformLock)
+    let result = pthread_mutex_destroy(platformLock)
+    precondition(result == 0, "pthread_mutex_destroy failed")
 #endif
     platformLock.deinitialize(count: 1)
   }
@@ -64,7 +68,8 @@ internal struct Lock {
 #if canImport(Darwin)
     os_unfair_lock_unlock(platformLock)
 #elseif canImport(Glibc)
-    pthread_mutex_unlock(platformLock)
+    let result = pthread_mutex_unlock(platformLock)
+    precondition(result == 0, "pthread_mutex_unlock failed")
 #elseif canImport(WinSDK)
     ReleaseSRWLockExclusive(platformLock)
 #endif

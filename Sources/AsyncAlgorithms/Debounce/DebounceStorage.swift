@@ -10,7 +10,7 @@
 //===----------------------------------------------------------------------===//
 
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
-final class DebounceStorage<Base: AsyncSequence, C: Clock>: @unchecked Sendable where Base: Sendable {
+final class DebounceStorage<Base: AsyncSequence & Sendable, C: Clock>: Sendable where Base.Element: Sendable {
     typealias Element = Base.Element
 
     /// The state machine protected with a lock.
@@ -55,36 +55,59 @@ final class DebounceStorage<Base: AsyncSequence, C: Clock>: @unchecked Sendable 
             // We always suspend since we can never return an element right away
 
             let result: Result<Element?, Error> = await withUnsafeContinuation { continuation in
-                self.stateMachine.withCriticalRegion {
-                    let action = $0.next(for: continuation)
+              let action: DebounceStateMachine<Base, C>.NextAction? = self.stateMachine.withCriticalRegion {
+                let action = $0.next(for: continuation)
 
-                    switch action {
-                    case .startTask(let base):
-                        self.startTask(
-                            stateMachine: &$0,
-                            base: base,
-                            downstreamContinuation: continuation
-                        )
+                switch action {
+                case .startTask(let base):
+                  self.startTask(
+                      stateMachine: &$0,
+                      base: base,
+                      downstreamContinuation: continuation
+                  )
+                  return nil
 
-                    case .resumeUpstreamContinuation(let upstreamContinuation):
-                        // This is signalling the upstream task that is consuming the upstream
-                        // sequence to signal demand.
-                        upstreamContinuation?.resume(returning: ())
+                case .resumeUpstreamContinuation:
+                  return action
 
-                    case .resumeUpstreamAndClockContinuation(let upstreamContinuation, let clockContinuation, let deadline):
-                        // This is signalling the upstream task that is consuming the upstream
-                        // sequence to signal demand and start the clock task.
-                        upstreamContinuation?.resume(returning: ())
-                        clockContinuation?.resume(returning: deadline)
+                case .resumeUpstreamAndClockContinuation:
+                  return action
 
-                    case .resumeDownstreamContinuationWithNil(let continuation):
-                        continuation.resume(returning: .success(nil))
+                case .resumeDownstreamContinuationWithNil:
+                  return action
 
-                    case .resumeDownstreamContinuationWithError(let continuation, let error):
-                        continuation.resume(returning: .failure(error))
-                    }
+                case .resumeDownstreamContinuationWithError:
+                  return action
                 }
-            }
+              }
+
+              switch action {
+              case .startTask:
+                // We are handling the startTask in the lock already because we want to avoid
+                // other inputs interleaving while starting the task
+                fatalError("Internal inconsistency")
+
+              case .resumeUpstreamContinuation(let upstreamContinuation):
+                // This is signalling the upstream task that is consuming the upstream
+                // sequence to signal demand.
+                upstreamContinuation?.resume(returning: ())
+
+              case .resumeUpstreamAndClockContinuation(let upstreamContinuation, let clockContinuation, let deadline):
+                // This is signalling the upstream task that is consuming the upstream
+                // sequence to signal demand and start the clock task.
+                upstreamContinuation?.resume(returning: ())
+                clockContinuation?.resume(returning: deadline)
+
+              case .resumeDownstreamContinuationWithNil(let continuation):
+                continuation.resume(returning: .success(nil))
+
+              case .resumeDownstreamContinuationWithError(let continuation, let error):
+                continuation.resume(returning: .failure(error))
+
+              case .none:
+                break
+              }
+          }
 
             return try result._rethrowGet()
         } onCancel: {
@@ -238,8 +261,8 @@ final class DebounceStorage<Base: AsyncSequence, C: Clock>: @unchecked Sendable 
                             let action = self.stateMachine.withCriticalRegion { $0.clockSleepFinished() }
 
                             switch action {
-                            case .resumeDownStreamContinuation(let downStreamContinuation, let element):
-                                downStreamContinuation.resume(returning: .success(element))
+                            case .resumeDownstreamContinuation(let downstreamContinuation, let element):
+                                downstreamContinuation.resume(returning: .success(element))
 
                             case .none:
                                 break
@@ -254,36 +277,39 @@ final class DebounceStorage<Base: AsyncSequence, C: Clock>: @unchecked Sendable 
                     }
                 }
 
-                do {
-                    try await group.waitForAll()
-                } catch {
-                    // The upstream sequence threw an error
-                    let action = self.stateMachine.withCriticalRegion { $0.upstreamThrew(error) }
+                while !group.isEmpty {
+                    do {
+                        try await group.next()
+                    } catch {
+                        // One of the upstream sequences threw an error
+                        let action = self.stateMachine.withCriticalRegion { stateMachine in
+                          stateMachine.upstreamThrew(error)
+                        }
 
-                    switch action {
-                    case .resumeContinuationWithErrorAndCancelTaskAndUpstreamContinuation(
-                        let downstreamContinuation,
-                        let error,
-                        let task,
-                        let upstreamContinuation,
-                        let clockContinuation
-                    ):
-                        upstreamContinuation?.resume(throwing: CancellationError())
-                        clockContinuation?.resume(throwing: CancellationError())
+                        switch action {
+                        case .resumeContinuationWithErrorAndCancelTaskAndUpstreamContinuation(
+                            let downstreamContinuation,
+                            let error,
+                            let task,
+                            let upstreamContinuation,
+                            let clockContinuation
+                        ):
+                            upstreamContinuation?.resume(throwing: CancellationError())
+                            clockContinuation?.resume(throwing: CancellationError())
 
-                        task.cancel()
+                            task.cancel()
 
-                        downstreamContinuation.resume(returning: .failure(error))
+                            downstreamContinuation.resume(returning: .failure(error))
 
-                    case .cancelTaskAndClockContinuation(
-                        let task,
-                        let clockContinuation
-                    ):
-                        clockContinuation?.resume(throwing: CancellationError())
-                        task.cancel()
-
-                    case .none:
-                        break
+                        case .cancelTaskAndClockContinuation(
+                            let task,
+                            let clockContinuation
+                        ):
+                            clockContinuation?.resume(throwing: CancellationError())
+                            task.cancel()
+                        case .none:
+                            break
+                        }
                     }
 
                     group.cancelAll()

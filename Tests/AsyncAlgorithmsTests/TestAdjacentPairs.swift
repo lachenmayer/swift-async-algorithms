@@ -9,7 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@preconcurrency import XCTest
+import XCTest
 import AsyncAlgorithms
 
 final class TestAdjacentPairs: XCTestCase {
@@ -88,10 +88,11 @@ final class TestAdjacentPairs: XCTestCase {
     }
     
     // ensure the other task actually starts
-    wait(for: [iterated], timeout: 1.0)
+    
+    await fulfillment(of: [iterated], timeout: 1.0)
     // cancellation should ensure the loop finishes
     // without regards to the remaining underlying sequence
     task.cancel()
-    wait(for: [finished], timeout: 1.0)
+    await fulfillment(of: [finished], timeout: 1.0)
   }
 }

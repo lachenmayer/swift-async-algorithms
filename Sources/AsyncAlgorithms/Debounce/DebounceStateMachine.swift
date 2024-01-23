@@ -10,10 +10,10 @@
 //===----------------------------------------------------------------------===//
 
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
-struct DebounceStateMachine<Base: AsyncSequence, C: Clock> {
+struct DebounceStateMachine<Base: AsyncSequence & Sendable, C: Clock>: Sendable where Base.Element: Sendable {
     typealias Element = Base.Element
 
-    private enum State {
+    private enum State: Sendable {
         /// The initial state before a call to `next` happened.
         case initial(base: Base)
 
@@ -390,8 +390,8 @@ struct DebounceStateMachine<Base: AsyncSequence, C: Clock> {
             preconditionFailure("Internal inconsistency current state \(self.state) and received upstreamFinished()")
 
         case .upstreamFailure:
-            // The upstream already failed so it should never have throw again.
-            preconditionFailure("Internal inconsistency current state \(self.state) and received childTaskSuspended()")
+            // We need to tolerate multiple upstreams failing
+            return .none
 
         case .waitingForDemand(let task, .none, let clockContinuation, .none):
             // We don't have any buffered element so we can just go ahead
@@ -517,8 +517,8 @@ struct DebounceStateMachine<Base: AsyncSequence, C: Clock> {
     /// Actions returned by `clockSleepFinished()`.
     enum ClockSleepFinishedAction {
         /// Indicates that the downstream continuation should be resumed with the given element.
-        case resumeDownStreamContinuation(
-            downStreamContinuation: UnsafeContinuation<Result<Element?, Error>, Never>,
+        case resumeDownstreamContinuation(
+            downstreamContinuation: UnsafeContinuation<Result<Element?, Error>, Never>,
             element: Element
         )
     }
@@ -547,8 +547,8 @@ struct DebounceStateMachine<Base: AsyncSequence, C: Clock> {
                     bufferedElement: nil
                 )
 
-                return .resumeDownStreamContinuation(
-                    downStreamContinuation: downstreamContinuation,
+                return .resumeDownstreamContinuation(
+                    downstreamContinuation: downstreamContinuation,
                     element: currentElement.element
                 )
             } else {
@@ -583,9 +583,8 @@ struct DebounceStateMachine<Base: AsyncSequence, C: Clock> {
     mutating func cancelled() -> CancelledAction? {
         switch self.state {
         case .initial:
-            // Since we are transitioning to `merging` before we return from `makeAsyncIterator`
-            // this can never happen
-            preconditionFailure("Internal inconsistency current state \(self.state) and received cancelled()")
+            state = .finished
+            return .none
 
         case .waitingForDemand:
             // We got cancelled before we event got any demand. This can happen if a cancelled task

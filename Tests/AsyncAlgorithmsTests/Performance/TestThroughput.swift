@@ -14,6 +14,32 @@ import AsyncAlgorithms
 
 #if canImport(Darwin)
 final class TestThroughput: XCTestCase {
+  func test_channel() async {
+    await measureChannelThroughput(output: 1)
+  }
+  func test_throwingChannel() async {
+    await measureThrowingChannelThroughput(output: 1)
+  }
+  func test_buffer_bounded() async {
+    await measureSequenceThroughput(output: 1) {
+      $0.buffer(policy: .bounded(5))
+    }
+  }
+  func test_buffer_unbounded() async {
+    await measureSequenceThroughput(output: 1) {
+      $0.buffer(policy: .unbounded)
+    }
+  }
+  func test_buffer_bufferingNewest() async {
+    await measureSequenceThroughput(output: 1) {
+      $0.buffer(policy: .bufferingLatest(5))
+    }
+  }
+  func test_buffer_bufferingOldest() async {
+    await measureSequenceThroughput(output: 1) {
+      $0.buffer(policy: .bufferingOldest(5))
+    }
+  }
   func test_chain2() async {
     await measureSequenceThroughput(firstOutput: 1, secondOutput: 2) {
       chain($0, $1)
@@ -64,11 +90,12 @@ final class TestThroughput: XCTestCase {
       zip($0, $1, $2)
     }
   }
-  @available(macOS 13.0, *)
   func test_debounce() async {
+    if #available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *) {
       await measureSequenceThroughput(source: (1...).async) {
-          $0.debounce(for: .zero, clock: ContinuousClock())
+        $0.debounce(for: .zero, clock: ContinuousClock())
       }
+    }
   }
 }
 #endif

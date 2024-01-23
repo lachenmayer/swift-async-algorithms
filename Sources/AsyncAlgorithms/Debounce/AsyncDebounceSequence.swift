@@ -13,14 +13,14 @@ extension AsyncSequence {
     /// Creates an asynchronous sequence that emits the latest element after a given quiescence period
     /// has elapsed by using a specified Clock.
     @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
-    public func debounce<C: Clock>(for interval: C.Instant.Duration, tolerance: C.Instant.Duration? = nil, clock: C) -> AsyncDebounceSequence<Self, C> where Self: Sendable {
+    public func debounce<C: Clock>(for interval: C.Instant.Duration, tolerance: C.Instant.Duration? = nil, clock: C) -> AsyncDebounceSequence<Self, C> where Self: Sendable, Self.Element: Sendable {
         AsyncDebounceSequence(self, interval: interval, tolerance: tolerance, clock: clock)
     }
 
     /// Creates an asynchronous sequence that emits the latest element after a given quiescence period
     /// has elapsed.
     @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
-    public func debounce(for interval: Duration, tolerance: Duration? = nil) -> AsyncDebounceSequence<Self, ContinuousClock> where Self: Sendable {
+    public func debounce(for interval: Duration, tolerance: Duration? = nil) -> AsyncDebounceSequence<Self, ContinuousClock> where Self: Sendable, Self.Element: Sendable {
         self.debounce(for: interval, tolerance: tolerance, clock: .continuous)
     }
 }
@@ -28,7 +28,7 @@ extension AsyncSequence {
 /// An `AsyncSequence` that emits the latest element after a given quiescence period
 /// has elapsed.
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
-public struct AsyncDebounceSequence<Base: AsyncSequence, C: Clock>: Sendable where Base: Sendable {
+public struct AsyncDebounceSequence<Base: AsyncSequence & Sendable, C: Clock>: Sendable where Base.Element: Sendable {
     private let base: Base
     private let clock: C
     private let interval: C.Instant.Duration
@@ -41,7 +41,7 @@ public struct AsyncDebounceSequence<Base: AsyncSequence, C: Clock>: Sendable whe
     ///   - interval: The interval to debounce.
     ///   - tolerance: The tolerance of the clock.
     ///   - clock: The clock.
-    public init(_ base: Base, interval: C.Instant.Duration, tolerance: C.Instant.Duration?, clock: C) {
+    init(_ base: Base, interval: C.Instant.Duration, tolerance: C.Instant.Duration?, clock: C) {
         self.base = base
         self.interval = interval
         self.tolerance = tolerance
@@ -53,20 +53,20 @@ public struct AsyncDebounceSequence<Base: AsyncSequence, C: Clock>: Sendable whe
 extension AsyncDebounceSequence: AsyncSequence {
     public typealias Element = Base.Element
 
-    public func makeAsyncIterator() -> AsyncIterator {
+    public func makeAsyncIterator() -> Iterator {
         let storage = DebounceStorage(
             base: self.base,
             interval: self.interval,
             tolerance: self.tolerance,
             clock: self.clock
         )
-        return AsyncIterator(storage: storage)
+        return Iterator(storage: storage)
     }
 }
 
 @available(macOS 13.0, iOS 16.0, watchOS 9.0, tvOS 16.0, *)
 extension AsyncDebounceSequence {
-    public struct AsyncIterator: AsyncIteratorProtocol {
+    public struct Iterator: AsyncIteratorProtocol {
         /// This class is needed to hook the deinit to observe once all references to the ``AsyncIterator`` are dropped.
         ///
         /// If we get move-only types we should be able to drop this class and use the `deinit` of the ``AsyncIterator`` struct itself.
@@ -97,3 +97,6 @@ extension AsyncDebounceSequence {
         }
     }
 }
+
+@available(*, unavailable)
+extension AsyncDebounceSequence.Iterator: Sendable { }

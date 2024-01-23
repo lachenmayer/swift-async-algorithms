@@ -9,7 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@preconcurrency import XCTest
+import XCTest
 import AsyncAlgorithms
 
 final class TestMerge2: XCTestCase {
@@ -185,12 +185,22 @@ final class TestMerge2: XCTestCase {
       finished.fulfill()
     }
     // ensure the other task actually starts
-    wait(for: [iterated], timeout: 1.0)
+    await fulfillment(of: [iterated], timeout: 1.0)
     // cancellation should ensure the loop finishes
     // without regards to the remaining underlying sequence
     task.cancel()
-    wait(for: [finished], timeout: 1.0)
+    await fulfillment(of: [finished], timeout: 1.0)
   }
+
+    func test_merge_when_cancelled() async {
+        let t = Task {
+          try? await Task.sleep(nanoseconds: 1_000_000_000)
+            let c1 = Indefinite(value: "test1").async
+            let c2 = Indefinite(value: "test1").async
+          for await _ in merge(c1, c2) {}
+        }
+        t.cancel()
+    }
 }
 
 final class TestMerge3: XCTestCase {
@@ -499,11 +509,11 @@ final class TestMerge3: XCTestCase {
       finished.fulfill()
     }
     // ensure the other task actually starts
-    wait(for: [iterated], timeout: 1.0)
+    await fulfillment(of: [iterated], timeout: 1.0)
     // cancellation should ensure the loop finishes
     // without regards to the remaining underlying sequence
     task.cancel()
-    wait(for: [finished], timeout: 1.0)
+    await fulfillment(of: [finished], timeout: 1.0)
   }
 
     // MARK: - IteratorInitialized

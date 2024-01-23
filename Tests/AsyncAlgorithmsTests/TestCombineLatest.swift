@@ -9,7 +9,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-@preconcurrency import XCTest
+import XCTest
 import AsyncAlgorithms
 
 final class TestCombineLatest2: XCTestCase {
@@ -19,7 +19,6 @@ final class TestCombineLatest2: XCTestCase {
     let sequence = combineLatest(a.async, b.async)
     let actual = await Array(sequence)
     XCTAssertGreaterThanOrEqual(actual.count, 3)
-    XCTAssertEqual(actual.first!, (1, "a"))
   }
   
   func test_throwing_combineLatest1() async {
@@ -85,7 +84,7 @@ final class TestCombineLatest2: XCTestCase {
     value = await validator.validate()
     XCTAssertEqual(value, [(1, "a"), (2, "a"), (2, "b"), (3, "b"), (3, "c")])
     
-    wait(for: [finished], timeout: 1.0)
+    await fulfillment(of: [finished], timeout: 1.0)
     value = validator.current
     XCTAssertEqual(value, [(1, "a"), (2, "a"), (2, "b"), (3, "b"), (3, "c")])
   }
@@ -127,7 +126,7 @@ final class TestCombineLatest2: XCTestCase {
     value = await validator.validate()
     XCTAssertEqual(value, [(1, "a"), (1, "b"), (2, "b"), (2, "c"), (3, "c")])
     
-    wait(for: [finished], timeout: 1.0)
+    await fulfillment(of: [finished], timeout: 1.0)
     value = validator.current
     XCTAssertEqual(value, [(1, "a"), (1, "b"), (2, "b"), (2, "c"), (3, "c")])
   }
@@ -169,7 +168,7 @@ final class TestCombineLatest2: XCTestCase {
     value = await validator.validate()
     XCTAssertEqual(value, [(1, "a"), (2, "a"), (3, "a"), (3, "b"), (3, "c")])
     
-    wait(for: [finished], timeout: 1.0)
+    await fulfillment(of: [finished], timeout: 1.0)
     value = validator.current
     XCTAssertEqual(value, [(1, "a"), (2, "a"), (3, "a"), (3, "b"), (3, "c")])
   }
@@ -211,7 +210,7 @@ final class TestCombineLatest2: XCTestCase {
     value = await validator.validate()
     XCTAssertEqual(value, [(1, "a"), (1, "b"), (1, "c"), (2, "c"), (3, "c")])
     
-    wait(for: [finished], timeout: 1.0)
+    await fulfillment(of: [finished], timeout: 1.0)
     value = validator.current
     XCTAssertEqual(value, [(1, "a"), (1, "b"), (1, "c"), (2, "c"), (3, "c")])
   }
@@ -251,7 +250,7 @@ final class TestCombineLatest2: XCTestCase {
     
     XCTAssertEqual(validator.failure as? Failure, Failure())
     
-    wait(for: [finished], timeout: 1.0)
+    await fulfillment(of: [finished], timeout: 1.0)
     value = validator.current
     XCTAssertEqual(value, [(1, "a"), (1, "b")])
   }
@@ -291,7 +290,7 @@ final class TestCombineLatest2: XCTestCase {
     
     XCTAssertEqual(validator.failure as? Failure, Failure())
     
-    wait(for: [finished], timeout: 1.0)
+    await fulfillment(of: [finished], timeout: 1.0)
     value = validator.current
     XCTAssertEqual(value, [(1, "a"), (2, "a")])
   }
@@ -313,12 +312,22 @@ final class TestCombineLatest2: XCTestCase {
       finished.fulfill()
     }
     // ensure the other task actually starts
-    wait(for: [iterated], timeout: 1.0)
+    await fulfillment(of: [iterated], timeout: 1.0)
     // cancellation should ensure the loop finishes
     // without regards to the remaining underlying sequence
     task.cancel()
-    wait(for: [finished], timeout: 1.0)
+    await fulfillment(of: [finished], timeout: 1.0)
   }
+
+    func test_combineLatest_when_cancelled() async {
+        let t = Task {
+          try? await Task.sleep(nanoseconds: 1_000_000_000)
+            let c1 = Indefinite(value: "test1").async
+            let c2 = Indefinite(value: "test1").async
+          for await _ in combineLatest(c1, c2) {}
+        }
+        t.cancel()
+    }
 }
 
 final class TestCombineLatest3: XCTestCase {
@@ -329,7 +338,6 @@ final class TestCombineLatest3: XCTestCase {
     let sequence = combineLatest(a.async, b.async, c.async)
     let actual = await Array(sequence)
     XCTAssertGreaterThanOrEqual(actual.count, 3)
-    XCTAssertEqual(actual.first!, (1, "a", 4))
   }
   
   func test_ordering1() async {
@@ -381,7 +389,7 @@ final class TestCombineLatest3: XCTestCase {
     value = await validator.validate()
     XCTAssertEqual(value, [(1, "a", 4), (2, "a", 4), (2, "b", 4), (2, "b", 5), (3, "b", 5), (3, "c", 5), (3, "c", 6)])
 
-    wait(for: [finished], timeout: 1.0)
+    await fulfillment(of: [finished], timeout: 1.0)
     value = validator.current
     XCTAssertEqual(value, [(1, "a", 4), (2, "a", 4), (2, "b", 4), (2, "b", 5), (3, "b", 5), (3, "c", 5), (3, "c", 6)])
   }

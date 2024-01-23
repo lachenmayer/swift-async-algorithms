@@ -9,6 +9,22 @@
 //
 //===----------------------------------------------------------------------===//
 
+extension AsyncSequence {
+  /// Returns a new `AsyncSequence` that iterates over every non-nil element from the
+  /// original `AsyncSequence`.
+  ///
+  /// Produces the same result as `c.compactMap { $0 }`.
+  ///
+  /// - Returns: An `AsyncSequence` where the element is the unwrapped original
+  ///   element and iterates over every non-nil element from the original
+  ///   `AsyncSequence`.
+  @inlinable
+  public func compacted<Unwrapped>() -> AsyncCompactedSequence<Self, Unwrapped>
+    where Element == Unwrapped? {
+    AsyncCompactedSequence(self)
+  }
+}
+
 /// An `AsyncSequence` that iterates over every non-nil element from the original
 /// `AsyncSequence`.
 @frozen
@@ -50,23 +66,7 @@ public struct AsyncCompactedSequence<Base: AsyncSequence, Element>: AsyncSequenc
   }
 }
 
-extension AsyncSequence {
-  /// Returns a new `AsyncSequence` that iterates over every non-nil element from the
-  /// original `AsyncSequence`.
-  ///
-  /// Produces the same result as `c.compactMap { $0 }`.
-  ///
-  /// - Returns: An `AsyncSequence` where the element is the unwrapped original
-  ///   element and iterates over every non-nil element from the original
-  ///   `AsyncSequence`.
-  ///
-  /// Complexity: O(1)
-  @inlinable
-  public func compacted<Unwrapped>() -> AsyncCompactedSequence<Self, Unwrapped>
-    where Element == Unwrapped? {
-    AsyncCompactedSequence(self)
-  }
-}
+extension AsyncCompactedSequence: Sendable where Base: Sendable, Base.Element: Sendable { }
 
-extension AsyncCompactedSequence: Sendable where Base: Sendable, Base.Element: Sendable, Base.AsyncIterator: Sendable { }
-extension AsyncCompactedSequence.Iterator: Sendable where Base: Sendable, Base.Element: Sendable, Base.AsyncIterator: Sendable { }
+@available(*, unavailable)
+extension AsyncCompactedSequence.Iterator: Sendable { }
